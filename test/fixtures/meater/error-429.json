@@ -1,0 +1,5 @@
+{
+  "status": "429 Too Many Requests",
+  "statusCode": 429,
+  "help": "https://github.com/apption-labs/meater-cloud-public-rest-api"
+}

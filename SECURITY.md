@@ -30,6 +30,19 @@ Gladys before reporting a problem.
 
 In scope: the code of this repository and the Docker image it publishes.
 
+What the integration handles:
+
+- **Secrets**: the e-mail address and the password of the MEATER Cloud
+  account live in the Gladys configuration (the password as a `secret`
+  field). The integration sends them to MEATER Cloud only, over HTTPS, to
+  sign in, and never writes them to a log or to `/data`.
+- **`/data`**: `token.json` holds the MEATER Cloud token (a JWT that does not
+  expire) with a SHA-256 fingerprint of the account, never the address;
+  `probes.json` holds the ids of the probes seen and the memory of their
+  current cook. Both files are readable by their owner only.
+- **Network**: outgoing HTTPS requests to `public-api.cloud.meater.com` only.
+  The integration listens on no port.
+
 Out of scope: Gladys Assistant itself (see its
 [security policy](https://github.com/GladysAssistant/Gladys/security/policy)),
-and the third-party services and devices the integration talks to.
+MEATER Cloud, the MEATER app and the probes.

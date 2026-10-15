@@ -1,0 +1,39 @@
+{
+  "status": "OK",
+  "statusCode": 200,
+  "data": {
+    "devices": [
+      {
+        "id": "7c1e9a3f5b2d4e6a8c0b1d3f5e7a9c2b4d6f8e0a1c3b5d7f9e2a4c6b8d0f1e3a",
+        "temperature": {
+          "internal": 26.0,
+          "ambient": 28.0
+        },
+        "cook": {
+          "id": "123123",
+          "name": "Whole chicken",
+          "state": "Started",
+          "temperature": {
+            "target": 74.0,
+            "peak": 27.0
+          },
+          "time": {
+            "elapsed": 2580,
+            "remaining": 1260
+          }
+        },
+        "updated_at": 1760536431
+      },
+      {
+        "id": "d4f2b6a8c0e1f3a5b7c9d2e4f6a8b0c1d3e5f7a9b2c4d6e8f0a1b3c5d7e9f2a4",
+        "temperature": {
+          "internal": 21.37,
+          "ambient": 21.37
+        },
+        "cook": null,
+        "updated_at": 1760536429
+      }
+    ]
+  },
+  "meta": {}
+}

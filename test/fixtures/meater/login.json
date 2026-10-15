@@ -1,0 +1,9 @@
+{
+  "status": "OK",
+  "statusCode": 200,
+  "data": {
+    "token": "fake.jwt.token-0123456789abcdef",
+    "userId": "00000000-0000-4000-8000-000000000001"
+  },
+  "meta": {}
+}
