@@ -11,17 +11,21 @@ Gladys through
 [`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js),
 its only runtime dependency. It started from the official JavaScript template.
 
+This one reads the **MEATER wireless meat thermometers** through the MEATER
+Cloud REST API (read only), see "MEATER" at the end of this file.
+
 ## Commands
 
 ```bash
 npm install
 npm test                                  # node --test, the built-in runner
-node --test test/devices.test.js          # one file
-node --test --test-name-pattern "plug"    # tests whose name matches
+node --test test/hub.test.js              # one file
+node --test --test-name-pattern "trigger" # tests whose name matches
 npm run lint                              # ESLint
 npm run format:check                      # Prettier, as the CI runs it
 npm run format                            # Prettier, fix in place
 npx github:GladysAssistant/integration-store .   # store admission checks
+node scripts/probe.mjs                    # the real API, fake account (needs network)
 ```
 
 The CI (`.github/workflows/ci.yml`) runs `format:check`, `lint` and `test` on
@@ -31,16 +35,24 @@ pushing.
 ## Architecture
 
 ```
-index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
-src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
+index.js                          SDK wiring only: createApp(gladys), shutdown, connect()
+src/app.js                        every handler (scan, poll fallback, device created, action, widget, config)
+src/hub.js                        the account: sign-in, refresh timer, states, triggers, discovery
+src/meater.js                     MEATER Cloud client: /login, /devices, 2 s spacing, typed errors
+src/probe.js                      the probe device: features (keys are forever), states
+src/cook.js                       the API cook states → stable keys, cooking / fast refresh
+src/triggers.js                   cook transitions → scene events, cook memory
+src/widgets.js                    the "cook" widget content (pure builders)
+src/store.js                      /data: token.json, probes.json (atomic writes)
+src/issues.js                     a repeated failure logged once, its recovery once
+src/i18n.js                       every text, en / fr / de / es
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
-gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
+scripts/probe.mjs                 read-only check of the real API (fake account by default)
+gladys-assistant-integration.json manifest: name, config_schema, actions, triggers, widget...
+docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys, same sections
 test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
+test/helpers/world.js             fake Gladys + fake MEATER Cloud + in-memory /data + clock
+test/fixtures/meater/             API answers in the documented shape (invented ids)
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
 
@@ -70,8 +82,10 @@ test/                             node --test, against the SDK's fake Gladys (in
   `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
   code (defaults, action, scene and widget handlers): change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** exists in four languages (English, French, German with
+  "du", Spanish with "usted"): action messages, connection statuses, widget
+  texts, feature names, manifest texts, and `docs/{en,fr,de,es}.md` with the
+  same sections. `test/i18n.test.js` checks all of it.
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 
@@ -233,3 +247,41 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
 - Chauffe, ouverture, sécurité : ne rien rendre pilotable « comme un thermostat » ou par un assistant
   vocal quand une erreur serait dangereuse (leçon d'OctoPrint).
+
+## MEATER
+
+Faits vérifiés dans la documentation officielle
+(`apption-labs/meater-cloud-public-rest-api`), `meater-python` (Apache-2.0,
+**pas MIT**) et l'intégration Home Assistant ; **aucun n'a pu être éprouvé sur
+le vrai service** : le proxy des sessions refuse `public-api.cloud.meater.com`
+(403), et il n'y a ni sonde ni compte. `scripts/probe.mjs` est à lancer depuis
+une machine qui a le réseau.
+
+- **API** : `POST /login` (e-mail + mot de passe → JWT qui n'expire pas mais
+  peut être réinitialisé), `GET /devices` (toutes les sondes du compte en une
+  requête), `Accept-Language` traduit les noms de morceaux. 60 requêtes par
+  minute au plus, 2 recommandées : le client espace tout de 2 s, le hub lit
+  toutes les 30 s pendant une cuisson et toutes les minutes sinon.
+- **Une sonde n'apparaît que pendant une cuisson**, quand l'application ou le
+  Block la relaie : elle disparaît ensuite de l'API. D'où `probes.json` (la
+  sonde reste dans Découverte entre deux cuissons) et le compte lu même sans
+  appareil ajouté (c'est la seule façon de découvrir une sonde). Disparition :
+  « connectée » à 0 tout de suite, cuisson remise à zéro après 30 min.
+- **`remaining` vaut -1 tant que MEATER estime** : jamais publié comme une
+  durée négative, la dernière estimation reste, le widget dit « Estimation ».
+- **Un seul nom par cuisson** (`cook.name` : le morceau ou le nom saisi) : pas
+  de nom de recette séparé dans l'API.
+- **Identifiants refusés** (401 au login) : plus aucune tentative avant une
+  nouvelle configuration ou un clic sur « Tester la connexion », pour ne pas
+  faire verrouiller le compte. Un 401 sur `/devices` avec un jeton enregistré :
+  une seule reconnexion.
+- **Déclencheurs** : `cook_almost_ready` n'est émis que viande sur le feu
+  (`Started`), un seuil à la fois (champ `minutes` obligatoire, sinon une
+  scène tournerait quatre fois) ; `remove_from_heat` est émis même au premier
+  regard (la viande est sur le feu maintenant) ; `resting_done` seulement sur
+  une transition vue dans la même cuisson (un verdict trouvé au démarrage peut
+  dater de plusieurs heures). La mémoire de cuisson est dans `probes.json`.
+- `AbortSignal.timeout` ne retient pas la boucle d'événements : un test qui
+  attend un délai d'expiration doit garder un minuteur actif.
+- Le `fetch` de Node 22 ignore `HTTPS_PROXY` (ENOTFOUND derrière un proxy) ;
+  Node 24 le suit avec `NODE_USE_ENV_PROXY=1`.

@@ -1,169 +1,132 @@
 // -----------------------------------------------------------------------------
-// Dashboard widgets (SDK v0.14+, Gladys 5.1+).
+// The "Cook" dashboard widget: one probe at a glance — internal, ambient and
+// target temperatures, remaining time, cook state.
 //
-// A widget puts the integration's own data on the Gladys dashboard without a
-// dedicated core widget. The manifest `widgets` field declares its identity
-// (key, label, icon, optional per-instance `settings`); at runtime the
-// integration returns a DECLARATIVE content — `text`, `value`, `gauge`,
-// `status`, `chart`, `card-list`, `image`, `button` — that the core renders
-// with its own theme, dark mode and translations. No HTML, no CSS.
+// Pure builders: they take what the hub last read (no API call per widget,
+// the quota is the refresh loop's) and return a content in the core
+// vocabulary. The temperatures are live tiles bound to the probe features;
+// the remaining time and the state are inline, refreshed by the content TTL
+// and by requestWidgetRefresh when they change.
 //
-// Each entry of WIDGETS is keyed by the widget `key` and exposes:
-//   - get(gladys, { settings, language, units, config }): the content,
-//     registered by index.js with `gladys.onWidgetGet(key, ...)`;
-//   - action(gladys, { actionKey, params, settings, config }) (optional): a
-//     tapped `button` carrying an `action`, registered with
-//     `gladys.onWidgetAction`.
-//
-// Check your contents in the tests with `validateWidgetContent` (exported by
-// the SDK, see test/widgets.test.js), or run with DEBUG=gladys-integration-sdk
-// to have the SDK log every violation of the vocabulary and the budget.
+// Budget (8 components, 6 tiles, 2 texts, 1 status): 1 heading, 4 tiles,
+// 1 status list.
 // -----------------------------------------------------------------------------
 
-import {
-  createLogger,
-  DEVICE_FEATURE_CATEGORIES,
-  DEVICE_TRANSPORTS,
-  WIDGET_COLORS,
-} from '@gladysassistant/integration-sdk';
-import { identifyDevice } from './devices/index.js';
-import { weatherStation } from './devices/weatherStation.js';
-import { plug } from './devices/plug.js';
-import { light } from './devices/light.js';
+import { WIDGET_COLORS } from '@gladysassistant/integration-sdk';
+import { cookStateKey, isCooking, remainingMinutes, elapsedMinutes, NO_COOK } from './cook.js';
+import { localize, stateLabel, formatMinutes, WIDGET_TEXT } from './i18n.js';
+import { FEATURE, probeIds } from './probe.js';
 
-const logger = createLogger({ name: 'widgets' });
+export const WIDGET = { COOK: 'cook' };
 
-// Widget key, as declared in the manifest `widgets` field.
-export const DEMO_STATUS_WIDGET = 'demo_status';
+/** Every widget key with a content handler (test/manifest.test.js ties it to the manifest). */
+export const WIDGET_KEYS = Object.values(WIDGET);
 
-// Keys of the `button` actions the demo_status content declares.
-const DEMO_STATUS_ACTIONS = { IDENTIFY_LIGHT: 'identify_light' };
-
-// How the plug transport reads in the status list.
-const TRANSPORT_STATUS = {
-  [DEVICE_TRANSPORTS.LOCAL]: { value: { en: 'Local', fr: 'Locale' }, color: WIDGET_COLORS.SUCCESS },
-  [DEVICE_TRANSPORTS.CLOUD]: { value: { en: 'Cloud', fr: 'Cloud' }, color: WIDGET_COLORS.INFO },
-  [DEVICE_TRANSPORTS.UNREACHABLE]: {
-    value: { en: 'Unreachable', fr: 'Injoignable' },
-    color: WIDGET_COLORS.DANGER,
-  },
+const STATE_COLORS = {
+  [NO_COOK]: WIDGET_COLORS.NEUTRAL,
+  not_started: WIDGET_COLORS.NEUTRAL,
+  configured: WIDGET_COLORS.INFO,
+  started: WIDGET_COLORS.PRIMARY,
+  ready_for_resting: WIDGET_COLORS.WARNING,
+  resting: WIDGET_COLORS.INFO,
+  slightly_underdone: WIDGET_COLORS.WARNING,
+  finished: WIDGET_COLORS.SUCCESS,
+  slightly_overdone: WIDGET_COLORS.WARNING,
+  overcooked: WIDGET_COLORS.DANGER,
+  unknown: WIDGET_COLORS.NEUTRAL,
 };
 
-// A live tile references a feature by its external_id: read it from the
-// discovery payload itself, so the widget and the device never disagree.
-function featureExternalId(gladys, config, blueprint, category) {
-  const device = blueprint.buildDevice(gladys, config);
-  return device.features.find((feature) => feature.category === category).external_id;
+/** A content made of one sentence (not configured, nothing to show yet). */
+export function messageContent(text, language) {
+  return {
+    ttl_seconds: 300,
+    components: [{ type: 'text', variant: 'body', text: localize(text, language) }],
+  };
 }
-
-function plugConnectionStatus(gladys, config) {
-  const { transport, degraded } = plug.transport(gladys, config);
-  const { value, color } = TRANSPORT_STATUS[transport];
-  if (degraded) {
-    return {
-      value: { en: `${value.en} (degraded mode)`, fr: `${value.fr} (mode dégradé)` },
-      color: WIDGET_COLORS.WARNING,
-    };
-  }
-  return { value, color };
-}
-
-export const WIDGETS = {
-  [DEMO_STATUS_WIDGET]: {
-    // `settings` holds the per-instance values of the declared `settings`
-    // (none here); `language` and `units` are those of the user viewing the
-    // dashboard, for the values you format yourself. Multi-language objects
-    // (`{ en, fr }`) are picked by the core, like everywhere else.
-    async get(gladys, { config }) {
-      logger.debug(`onWidgetGet <- ${DEMO_STATUS_WIDGET}`);
-      return {
-        // Reload policy: the computed parts below only change with the
-        // config, and index.js nudges the widget on every (re)connection and
-        // config update (see refreshWidgets) — the TTL is just a safety net.
-        ttl_seconds: 300,
-        components: [
-          // Device-bound tiles: LIVE, they follow the published states over
-          // the core's real-time path. No TTL, no nudge involved.
-          {
-            type: 'value',
-            label: { en: 'Temperature', fr: 'Température' },
-            icon: 'thermometer',
-            device_feature: featureExternalId(
-              gladys,
-              config,
-              weatherStation,
-              DEVICE_FEATURE_CATEGORIES.TEMPERATURE_SENSOR,
-            ),
-          },
-          {
-            type: 'value',
-            label: { en: 'Office plug', fr: 'Prise du bureau' },
-            icon: 'zap',
-            device_feature: featureExternalId(
-              gladys,
-              config,
-              plug,
-              DEVICE_FEATURE_CATEGORIES.ENERGY_SENSOR,
-            ),
-          },
-          // Computed rows: what the integration knows that no device feature
-          // carries. Served from the core cache until the TTL or a nudge.
-          {
-            type: 'status',
-            items: [
-              {
-                label: { en: 'Plug connection', fr: 'Connexion de la prise' },
-                icon: 'wifi',
-                ...plugConnectionStatus(gladys, config),
-              },
-              {
-                label: { en: 'Observed location', fr: 'Position observée' },
-                icon: 'map-pin',
-                value: `${config.latitude.toFixed(2)}, ${config.longitude.toFixed(2)}`,
-                color: WIDGET_COLORS.NEUTRAL,
-              },
-            ],
-          },
-          // `params` are declared HERE and sent back as-is: the handler never
-          // receives user input (a dashboard can hang on a public wall).
-          {
-            type: 'button',
-            label: { en: 'Identify the light', fr: 'Identifier la lampe' },
-            icon: 'eye',
-            style: 'secondary',
-            action: {
-              key: DEMO_STATUS_ACTIONS.IDENTIFY_LIGHT,
-              params: { device: light.deviceExternalId(gladys) },
-            },
-          },
-        ],
-      };
-    },
-
-    // Resolve an optional toast (string or multi-language object, ≤ 200
-    // characters). After a successful action the core drops the cached
-    // content and every open dashboard refetches it: no nudge needed.
-    async action(gladys, { actionKey, params, config }) {
-      logger.info(`onWidgetAction <- ${DEMO_STATUS_WIDGET}.${actionKey}`);
-      if (actionKey === DEMO_STATUS_ACTIONS.IDENTIFY_LIGHT) {
-        return identifyDevice(gladys, params.device, config);
-      }
-      // Throwing acks the action as failed: the message reaches the user.
-      throw new Error(`Unknown widget action: ${actionKey}`);
-    },
-  },
-};
 
 /**
- * Freshness nudge: ask the core to re-pull every widget NOW instead of
- * waiting for the content TTL. Call it when you KNOW a computed content
- * changed (here: the config, which drives the plug transport and the observed
- * location) — and after every (re)connection, since the nudges are
- * fire-and-forget: rate-limited core-side to 1 per 10 s per widget, dropped
- * silently while disconnected.
+ * @param {object} gladys
+ * @param {object} options
+ * @param {string} options.probeId
+ * @param {string} options.deviceName the name of the device in Gladys
+ * @param {ReturnType<import('./meater.js').parseDevice> | null} options.probe the last reading, null when not visible
+ * @param {string} options.language
  */
-export function refreshWidgets(gladys) {
-  for (const key of Object.keys(WIDGETS)) {
-    gladys.requestWidgetRefresh(key);
+export function buildCookContent(gladys, { probeId, deviceName, probe, language }) {
+  const ids = probeIds(gladys, probeId);
+  const cook = probe?.cook ?? null;
+  const key = cookStateKey(cook);
+  const minutes = remainingMinutes(cook);
+  const t = (text) => localize(text, language);
+
+  let remaining = '—';
+  if (cook && isCooking(key)) {
+    remaining = minutes === null ? t(WIDGET_TEXT.estimating) : formatMinutes(minutes);
   }
+
+  return {
+    // Fast while something moves, slow otherwise (the tiles are live anyway).
+    ttl_seconds: cook ? 30 : 300,
+    components: [
+      { type: 'text', variant: 'heading', text: (cook?.name || deviceName).slice(0, 40) },
+      {
+        type: 'value',
+        label: t(WIDGET_TEXT.internal),
+        icon: 'thermometer',
+        device_feature: ids.feature(FEATURE.INTERNAL),
+      },
+      {
+        type: 'value',
+        label: t(WIDGET_TEXT.target),
+        icon: 'target',
+        device_feature: ids.feature(FEATURE.TARGET),
+      },
+      {
+        type: 'value',
+        label: t(WIDGET_TEXT.ambient),
+        icon: 'wind',
+        device_feature: ids.feature(FEATURE.AMBIENT),
+      },
+      { type: 'value', label: t(WIDGET_TEXT.remaining), icon: 'clock', value: remaining },
+      {
+        type: 'status',
+        items: [
+          {
+            label: t(WIDGET_TEXT.state),
+            value: stateLabel(key, language, cook?.state),
+            color: probe ? STATE_COLORS[key] : WIDGET_COLORS.NEUTRAL,
+          },
+          {
+            label: t(WIDGET_TEXT.elapsed),
+            value: cook ? formatMinutes(elapsedMinutes(cook)) : '—',
+          },
+          {
+            label: t(WIDGET_TEXT.probe),
+            value: t(probe ? WIDGET_TEXT.connected : WIDGET_TEXT.notSeen),
+            color: probe ? WIDGET_COLORS.SUCCESS : WIDGET_COLORS.NEUTRAL,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * The probe a widget shows: the one picked in its settings, else the one
+ * cooking, else the first added.
+ * @param {object[]} devices the probe devices added to Gladys, with their probeId
+ * @param {string | undefined} picked the external id of the settings
+ * @param {(probeId: string) => object | null} readingOf
+ */
+export function pickProbe(devices, picked, readingOf) {
+  const chosen = devices.find((device) => device.external_id === picked);
+  if (chosen) {
+    return chosen;
+  }
+  return (
+    devices.find((device) => isCooking(cookStateKey(readingOf(device.probeId)?.cook ?? null))) ??
+    devices.find((device) => readingOf(device.probeId)?.cook) ??
+    devices[0] ??
+    null
+  );
 }

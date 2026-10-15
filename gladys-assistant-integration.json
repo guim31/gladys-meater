@@ -1,177 +1,472 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "MEATER",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "MEATER wireless meat thermometers in Gladys: temperatures, remaining time, cook state.",
+    "fr": "Les sondes de cuisson sans fil MEATER dans Gladys : températures, temps restant, cuisson.",
+    "de": "Die kabellosen MEATER-Fleischthermometer in Gladys: Temperaturen, Restzeit, Garstatus.",
+    "es": "Los termómetros inalámbricos MEATER en Gladys: temperaturas, tiempo restante, cocción."
   },
   "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "docker_image": "ghcr.io/guim31/gladys-meater:1.0.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/guim31/gladys-meater/main/cover.png",
+  "categories": ["appliances"],
+  "transports": ["cloud"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "MEATER Cloud account",
+        "fr": "Compte MEATER Cloud",
+        "de": "MEATER-Cloud-Konto",
+        "es": "Cuenta MEATER Cloud"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "The probes are read through the official MEATER Cloud API, with the account of the MEATER app. In the app, sign in to MEATER Cloud first. A probe only shows while the MEATER app or Block is connected to it and to MEATER Cloud, during a cook. Read only: Gladys never changes a cook.",
+        "fr": "Les sondes sont lues par l'API officielle MEATER Cloud, avec le compte de l'application MEATER. Dans l'application, connectez-vous d'abord à MEATER Cloud. Une sonde n'apparaît que pendant une cuisson, quand l'application MEATER ou le Block y est connecté. Lecture seule : Gladys ne modifie jamais une cuisson.",
+        "de": "Die Fühler werden über die offizielle MEATER-Cloud-API gelesen, mit dem Konto der MEATER-App. Melde dich in der App zuerst bei MEATER Cloud an. Ein Fühler erscheint nur während eines Garvorgangs, solange die MEATER-App oder der Block mit ihm verbunden ist. Nur lesend: Gladys ändert nie einen Garvorgang.",
+        "es": "Las sondas se leen con la API oficial de MEATER Cloud, con la cuenta de la aplicación MEATER. En la aplicación, inicie sesión primero en MEATER Cloud. Una sonda solo aparece durante una cocción, mientras la aplicación MEATER o el Block están conectados a ella. Solo lectura: Gladys nunca modifica una cocción."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/apption-labs/meater-cloud-public-rest-api",
+          "label": {
+            "en": "MEATER Cloud API documentation",
+            "fr": "Documentation de l'API MEATER Cloud",
+            "de": "Dokumentation der MEATER-Cloud-API",
+            "es": "Documentación de la API de MEATER Cloud"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "email",
+      "type": "string",
+      "label": {
+        "en": "E-mail address",
+        "fr": "Adresse e-mail",
+        "de": "E-Mail-Adresse",
+        "es": "Correo electrónico"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "description": {
+        "en": "The e-mail address of your MEATER Cloud account.",
+        "fr": "L'adresse e-mail de votre compte MEATER Cloud.",
+        "de": "Die E-Mail-Adresse deines MEATER-Cloud-Kontos.",
+        "es": "La dirección de correo electrónico de su cuenta MEATER Cloud."
+      },
+      "placeholder": {
+        "en": "e.g. name@example.com",
+        "fr": "ex. nom@example.com",
+        "de": "z. B. name@example.com",
+        "es": "p. ej. nombre@example.com"
+      },
+      "required": true
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      "key": "password",
+      "type": "secret",
+      "label": {
+        "en": "Password",
+        "fr": "Mot de passe",
+        "de": "Passwort",
+        "es": "Contraseña"
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "required": true
     },
     {
-      "key": "unit",
+      "key": "language",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
+      "label": {
+        "en": "Language",
+        "fr": "Langue",
+        "de": "Sprache",
+        "es": "Idioma"
+      },
+      "description": {
+        "en": "Language of the feature names, of the cook states and of the cut names sent by MEATER Cloud.",
+        "fr": "Langue des noms de fonctionnalités, des états de cuisson et des noms de morceaux envoyés par MEATER Cloud.",
+        "de": "Sprache der Funktionsnamen, der Garstatus und der Namen der Fleischstücke, die MEATER Cloud sendet.",
+        "es": "Idioma de los nombres de las funciones, de los estados de cocción y de los nombres de las piezas que envía MEATER Cloud."
+      },
       "required": false,
-      "default": "celsius",
+      "default": "fr",
       "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
+        {
+          "value": "en",
+          "label": { "en": "English", "fr": "Anglais", "de": "Englisch", "es": "Inglés" }
+        },
+        {
+          "value": "fr",
+          "label": { "en": "French", "fr": "Français", "de": "Französisch", "es": "Francés" }
+        },
+        {
+          "value": "de",
+          "label": { "en": "German", "fr": "Allemand", "de": "Deutsch", "es": "Alemán" }
+        },
+        {
+          "value": "es",
+          "label": { "en": "Spanish", "fr": "Espagnol", "de": "Spanisch", "es": "Español" }
+        }
       ]
     },
     {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "key": "cook_refresh",
+      "type": "select",
+      "label": {
+        "en": "Refresh during a cook",
+        "fr": "Rafraîchissement pendant une cuisson",
+        "de": "Aktualisierung während des Garens",
+        "es": "Actualización durante una cocción"
+      },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+        "en": "How often MEATER Cloud is read while a cook is in progress. Every minute otherwise, as the MEATER documentation advises.",
+        "fr": "Fréquence de lecture de MEATER Cloud pendant une cuisson. Toutes les minutes sinon, comme le conseille la documentation MEATER.",
+        "de": "Wie oft MEATER Cloud während eines Garvorgangs gelesen wird. Sonst jede Minute, wie es die MEATER-Dokumentation empfiehlt.",
+        "es": "Con qué frecuencia se lee MEATER Cloud durante una cocción. Cada minuto en los demás casos, como aconseja la documentación de MEATER."
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "default": "30",
+      "options": [
+        {
+          "value": "15",
+          "label": {
+            "en": "Every 15 seconds",
+            "fr": "Toutes les 15 secondes",
+            "de": "Alle 15 Sekunden",
+            "es": "Cada 15 segundos"
+          }
+        },
+        {
+          "value": "30",
+          "label": {
+            "en": "Every 30 seconds (recommended)",
+            "fr": "Toutes les 30 secondes (recommandé)",
+            "de": "Alle 30 Sekunden (empfohlen)",
+            "es": "Cada 30 segundos (recomendado)"
+          }
+        },
+        {
+          "value": "60",
+          "label": {
+            "en": "Every minute",
+            "fr": "Toutes les minutes",
+            "de": "Jede Minute",
+            "es": "Cada minuto"
+          }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
+      "key": "test_connection",
+      "label": {
+        "en": "Test the connection",
+        "fr": "Tester la connexion",
+        "de": "Verbindung testen",
+        "es": "Probar la conexión"
+      },
       "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
     }
   ],
   "scene_triggers": [
     {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "cook_almost_ready",
+      "label": {
+        "en": "Cook almost ready",
+        "fr": "Cuisson presque prête",
+        "de": "Garvorgang fast fertig",
+        "es": "Cocción casi lista"
+      },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+        "en": "The remaining time estimated by MEATER went under the chosen threshold. Once per cook and threshold.",
+        "fr": "Le temps restant estimé par MEATER est passé sous le seuil choisi. Une fois par cuisson et par seuil.",
+        "de": "Die von MEATER geschätzte Restzeit ist unter die gewählte Schwelle gefallen. Einmal pro Garvorgang und Schwelle.",
+        "es": "El tiempo restante estimado por MEATER ha bajado del umbral elegido. Una vez por cocción y por umbral."
       },
       "fields": [
         {
           "key": "device",
           "type": "select",
           "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
+          "label": { "en": "Probe", "fr": "Sonde", "de": "Fühler", "es": "Sonda" }
         },
         {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
+          "key": "minutes",
+          "type": "select",
+          "label": {
+            "en": "Remaining time under",
+            "fr": "Temps restant sous",
+            "de": "Restzeit unter",
+            "es": "Tiempo restante inferior a"
+          },
+          "required": true,
+          "default": "10",
           "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
+            {
+              "value": "5",
+              "label": {
+                "en": "5 minutes",
+                "fr": "5 minutes",
+                "de": "5 Minuten",
+                "es": "5 minutos"
+              }
+            },
+            {
+              "value": "10",
+              "label": {
+                "en": "10 minutes",
+                "fr": "10 minutes",
+                "de": "10 Minuten",
+                "es": "10 minutos"
+              }
+            },
+            {
+              "value": "15",
+              "label": {
+                "en": "15 minutes",
+                "fr": "15 minutes",
+                "de": "15 Minuten",
+                "es": "15 minutos"
+              }
+            },
+            {
+              "value": "30",
+              "label": {
+                "en": "30 minutes",
+                "fr": "30 minutes",
+                "de": "30 Minuten",
+                "es": "30 minutos"
+              }
+            }
           ]
         }
       ],
       "variables": [
         {
-          "key": "target",
+          "key": "cook_name",
           "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
+          "label": { "en": "Cook", "fr": "Cuisson", "de": "Gargut", "es": "Cocción" }
+        },
+        {
+          "key": "remaining_minutes",
+          "type": "number",
+          "label": {
+            "en": "Remaining time (min)",
+            "fr": "Temps restant (min)",
+            "de": "Restzeit (Min.)",
+            "es": "Tiempo restante (min)"
+          }
+        },
+        {
+          "key": "minutes",
+          "type": "number",
+          "label": {
+            "en": "Threshold (min)",
+            "fr": "Seuil (min)",
+            "de": "Schwelle (Min.)",
+            "es": "Umbral (min)"
+          }
+        },
+        {
+          "key": "internal_temperature",
+          "type": "number",
+          "label": {
+            "en": "Internal temperature (°C)",
+            "fr": "Température interne (°C)",
+            "de": "Kerntemperatur (°C)",
+            "es": "Temperatura interna (°C)"
+          }
+        },
+        {
+          "key": "target_temperature",
+          "type": "number",
+          "label": {
+            "en": "Target temperature (°C)",
+            "fr": "Température cible (°C)",
+            "de": "Zieltemperatur (°C)",
+            "es": "Temperatura objetivo (°C)"
+          }
         }
       ]
-    }
-  ],
-  "scene_actions": [
+    },
     {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
+      "key": "remove_from_heat",
+      "label": {
+        "en": "Remove from heat",
+        "fr": "À retirer du feu",
+        "de": "Vom Feuer nehmen",
+        "es": "Retirar del fuego"
       },
-      "timeout_seconds": 15,
+      "description": {
+        "en": "The cook reached the point where MEATER says to take the meat off the heat and let it rest.",
+        "fr": "La cuisson a atteint le moment où MEATER dit de retirer la viande du feu et de la laisser reposer.",
+        "de": "Der Garvorgang hat den Punkt erreicht, an dem MEATER sagt, das Fleisch vom Feuer zu nehmen und ruhen zu lassen.",
+        "es": "La cocción ha llegado al momento en que MEATER indica retirar la carne del fuego y dejarla reposar."
+      },
       "fields": [
         {
           "key": "device",
           "type": "select",
           "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
+          "label": { "en": "Probe", "fr": "Sonde", "de": "Fühler", "es": "Sonda" }
         }
       ],
-      "outputs": [
+      "variables": [
         {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
+          "key": "cook_name",
+          "type": "string",
+          "label": { "en": "Cook", "fr": "Cuisson", "de": "Gargut", "es": "Cocción" }
+        },
+        {
+          "key": "internal_temperature",
+          "type": "number",
+          "label": {
+            "en": "Internal temperature (°C)",
+            "fr": "Température interne (°C)",
+            "de": "Kerntemperatur (°C)",
+            "es": "Temperatura interna (°C)"
+          }
+        },
+        {
+          "key": "target_temperature",
+          "type": "number",
+          "label": {
+            "en": "Target temperature (°C)",
+            "fr": "Température cible (°C)",
+            "de": "Zieltemperatur (°C)",
+            "es": "Temperatura objetivo (°C)"
+          }
+        }
+      ]
+    },
+    {
+      "key": "resting_done",
+      "label": {
+        "en": "Resting done",
+        "fr": "Repos terminé",
+        "de": "Ruhezeit vorbei",
+        "es": "Reposo terminado"
+      },
+      "description": {
+        "en": "The rest is over and MEATER gives its verdict: done, slightly underdone, slightly overdone or overcooked.",
+        "fr": "Le repos est terminé et MEATER donne son verdict : terminée, légèrement sous-cuite, légèrement trop cuite ou trop cuite.",
+        "de": "Die Ruhezeit ist vorbei und MEATER gibt sein Urteil: fertig, etwas zu wenig gegart, etwas zu lange gegart oder übergart.",
+        "es": "El reposo ha terminado y MEATER da su veredicto: lista, un poco cruda, un poco pasada o demasiado hecha."
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": { "en": "Probe", "fr": "Sonde", "de": "Fühler", "es": "Sonda" }
+        },
+        {
+          "key": "result",
+          "type": "multi_select",
+          "label": { "en": "Result", "fr": "Résultat", "de": "Ergebnis", "es": "Resultado" },
+          "options": [
+            {
+              "value": "finished",
+              "label": { "en": "Done", "fr": "Terminée", "de": "Fertig", "es": "Lista" }
+            },
+            {
+              "value": "slightly_underdone",
+              "label": {
+                "en": "Slightly underdone",
+                "fr": "Légèrement sous-cuite",
+                "de": "Etwas zu wenig gegart",
+                "es": "Un poco cruda"
+              }
+            },
+            {
+              "value": "slightly_overdone",
+              "label": {
+                "en": "Slightly overdone",
+                "fr": "Légèrement trop cuite",
+                "de": "Etwas zu lange gegart",
+                "es": "Un poco pasada"
+              }
+            },
+            {
+              "value": "overcooked",
+              "label": {
+                "en": "Overcooked",
+                "fr": "Trop cuite",
+                "de": "Übergart",
+                "es": "Demasiado hecha"
+              }
+            }
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "key": "cook_name",
+          "type": "string",
+          "label": { "en": "Cook", "fr": "Cuisson", "de": "Gargut", "es": "Cocción" }
+        },
+        {
+          "key": "cook_state",
+          "type": "string",
+          "label": { "en": "Result", "fr": "Résultat", "de": "Ergebnis", "es": "Resultado" }
+        },
+        {
+          "key": "internal_temperature",
+          "type": "number",
+          "label": {
+            "en": "Internal temperature (°C)",
+            "fr": "Température interne (°C)",
+            "de": "Kerntemperatur (°C)",
+            "es": "Temperatura interna (°C)"
+          }
+        },
+        {
+          "key": "target_temperature",
+          "type": "number",
+          "label": {
+            "en": "Target temperature (°C)",
+            "fr": "Température cible (°C)",
+            "de": "Zieltemperatur (°C)",
+            "es": "Temperatura objetivo (°C)"
+          }
         }
       ]
     }
   ],
   "widgets": [
     {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
+      "key": "cook",
+      "label": {
+        "en": "MEATER cook",
+        "fr": "Cuisson MEATER",
+        "de": "MEATER-Garvorgang",
+        "es": "Cocción MEATER"
       },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+      "description": {
+        "en": "Temperatures, remaining time and state of the cook of one probe.",
+        "fr": "Températures, temps restant et état de la cuisson d'une sonde.",
+        "de": "Temperaturen, Restzeit und Status des Garvorgangs eines Fühlers.",
+        "es": "Temperaturas, tiempo restante y estado de la cocción de una sonda."
+      },
+      "icon": "thermometer",
+      "settings": [
+        {
+          "key": "probe",
+          "type": "select",
+          "source": "devices",
+          "label": { "en": "Probe", "fr": "Sonde", "de": "Fühler", "es": "Sonda" },
+          "description": {
+            "en": "Empty: the probe cooking right now.",
+            "fr": "Vide : la sonde en train de cuire.",
+            "de": "Leer: der Fühler, der gerade gart.",
+            "es": "Vacío: la sonda que está cocinando."
+          }
+        }
+      ]
     }
   ]
 }
