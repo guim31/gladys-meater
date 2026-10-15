@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-15
+
 ### Added
 
 - MEATER wireless meat thermometers in Gladys, through the official MEATER
@@ -30,4 +32,5 @@ the notes of the version's GitHub Release.
   every minute otherwise, within the MEATER Cloud quotas.
 - English, French, German and Spanish everywhere, documentation included.
 
-[Unreleased]: https://github.com/guim31/gladys-meater/commits/main
+[Unreleased]: https://github.com/guim31/gladys-meater/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/guim31/gladys-meater/releases/tag/v1.0.1
